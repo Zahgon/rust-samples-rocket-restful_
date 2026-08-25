@@ -19,13 +19,13 @@
 //! - `Clone` — allows creating an independent copy of a value
 //! - `Serialize` — converts the struct to JSON (for API responses)
 //! - `Deserialize` — populates the struct from JSON (for API requests)
+//! - `ToSchema` — generates the OpenAPI schema (utoipa) for this type
 //! - `#[serde(rename_all = "camelCase")]` maps snake_case Rust fields to
 //!   camelCase JSON keys (e.g. `first_name` → `"firstName"`)
 
 use diesel::prelude::*;
-use rocket::serde::{Deserialize, Serialize};
-use rocket_okapi::okapi::schemars;
-use rocket_okapi::okapi::schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use validator::Validate;
 
 /// Internal Diesel model for reading a row from the `players` table.
@@ -81,7 +81,7 @@ pub struct NewPlayer {
 /// This struct only needs `Deserialize` because it is only ever read from JSON.
 /// `Clone` and `Serialize` are omitted to keep the type minimal and make
 /// incorrect usage a compile-time error.
-#[derive(Debug, Deserialize, JsonSchema, Validate)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerRequest {
     #[validate(length(min = 1))]
@@ -112,7 +112,7 @@ pub struct PlayerRequest {
 /// ## Rust note: missing `Deserialize`
 /// This struct only needs `Serialize` because it is only ever written to JSON.
 /// `Deserialize` is omitted since we never parse a response back into Rust.
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerResponse {
     pub id: String,

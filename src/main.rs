@@ -1,7 +1,7 @@
-//! Sample REST API with Rust and Rocket
+//! Sample REST API with Rust and Axum
 //!
-//! This is the application entry point that initializes the Rocket web framework,
-//! initializes player data, and mounts all API routes.
+//! This is the application entry point that initializes the Axum web framework,
+//! initializes player data, and serves all API routes.
 //!
 //! The application follows a modular architecture:
 //! - `models`: Data structures and conversions
@@ -11,59 +11,29 @@
 //!
 //! For more details, see the project README.
 
-#[macro_use]
-extern crate rocket;
+use rust_samples_rocket_restful::build_app;
+use rust_samples_rocket_restful::state::player_collection::initialize_database;
 
-mod models;
-mod repositories;
-mod routes;
-mod schema;
-mod services;
-mod state;
-
-use rocket_okapi::mount_endpoints_and_merged_docs;
-use rocket_okapi::okapi::openapi3::{Info, OpenApi};
-use rocket_okapi::settings::OpenApiSettings;
-use rocket_okapi::swagger_ui::{SwaggerUIConfig, make_swagger_ui};
-use state::player_collection::initialize_database;
-
-/// Configures and launches the Rocket web server.
+/// Configures and launches the Axum web server.
 ///
-/// ## Rust note: `#[launch]` macro
-/// `#[launch]` is a Rocket procedural macro that generates the actual `main()`
-/// function around this one. It sets up an async runtime (Tokio), calls
-/// `rocket()` to build the configured instance, and starts the HTTP server.
+/// ## Rust note: `#[tokio::main]` macro
+/// `#[tokio::main]` is a procedural macro that sets up the Tokio async runtime
+/// and rewrites this async `main` into a synchronous entry point. It replaces
+/// Rocket's `#[launch]` macro: instead of returning a `Rocket<Build>` instance
+/// for the framework to launch, we build the router with [`build_app`] and drive
+/// the server ourselves via `axum::serve`.
 ///
-/// The `-> _` return type lets the compiler infer the full generic `Rocket<Build>`
-/// type, avoiding a verbose type annotation.
-#[launch]
-fn rocket() -> _ {
+/// The listener is bound to `0.0.0.0:9000` in code — the port and address that
+/// previously lived in `Rocket.toml`.
+#[tokio::main]
+async fn main() {
     let database = initialize_database();
-    let settings = OpenApiSettings::default();
+    let app = build_app(database);
 
-    let mut server = rocket::build().manage(database).mount(
-        "/swagger-ui/",
-        make_swagger_ui(&SwaggerUIConfig {
-            url: "../openapi.json".to_owned(),
-            ..Default::default()
-        }),
-    );
-
-    mount_endpoints_and_merged_docs! {
-        server, "/".to_owned(), settings,
-        "/" => (vec![], OpenApi {
-            openapi: "3.0.0".to_owned(),
-            info: Info {
-                title: "Players REST API".to_owned(),
-                description: Some("Sample REST API with Rust and Rocket".to_owned()),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-        "/" => routes::health::get_routes_and_docs(&settings),
-        "/" => routes::players::get_routes_and_docs(&settings),
-    };
-
-    server
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9000")
+        .await
+        .expect("Failed to bind to 0.0.0.0:9000");
+    axum::serve(listener, app)
+        .await
+        .expect("Failed to start server");
 }

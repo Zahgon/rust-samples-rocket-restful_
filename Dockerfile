@@ -38,7 +38,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # dependencies (which remain in the cache-mounted target/).
 COPY src/ ./src/
 COPY migrations/ ./migrations/
-COPY Rocket.toml ./
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
@@ -59,29 +58,28 @@ WORKDIR /app
 RUN apk add --no-cache curl
 
 # -- Metadata ------------------------------------------------------------------
-LABEL org.opencontainers.image.title="🧪 RESTful API with Rust and Rocket"
-LABEL org.opencontainers.image.description="Proof of Concept for a RESTful API made with Rust and Rocket"
+LABEL org.opencontainers.image.title="🧪 RESTful API with Rust and Axum"
+LABEL org.opencontainers.image.description="Proof of Concept for a RESTful API made with Rust and Axum"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/nanotaboada/rust-samples-rocket-restful"
 LABEL org.sonarsource.docker.dockerfile="/Dockerfile"
 
 # -- Copy artifacts ------------------------------------------------------------
 COPY --from=builder /app/rust-samples-rocket-restful .
-COPY --from=builder /app/Rocket.toml                 ./Rocket.toml
 COPY --chmod=444    README.md                        ./
 COPY --chmod=555    scripts/entrypoint.sh            ./entrypoint.sh
 COPY --chmod=555    scripts/healthcheck.sh           ./healthcheck.sh
 
 # -- Configure runtime ---------------------------------------------------------
 # https://rules.sonarsource.com/docker/RSPEC-6504/
-RUN addgroup -S rocket && \
-    adduser -S -G rocket rocket && \
+RUN addgroup -S app && \
+    adduser -S -G app app && \
     mkdir -p /storage && \
-    chown -R rocket:rocket /storage
+    chown -R app:app /storage
 
 ENV STORAGE_PATH=/storage/players-sqlite3.db
 
-USER rocket
+USER app
 
 EXPOSE 9000
 

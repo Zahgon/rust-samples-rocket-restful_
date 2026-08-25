@@ -13,12 +13,19 @@
 use crate::models::player::{PlayerRequest, PlayerResponse};
 use crate::services::player_service::{self, CreateError, UpdateError};
 use crate::state::player_collection::PlayerCollection;
-use rocket::{State, delete, get, http::Status, post, put, serde::json::Json};
-use rocket_okapi::{openapi, openapi_get_routes_spec};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    routing::get,
+};
 use validator::Validate;
 
-fn validate_payload<T: Validate>(payload: &T) -> Result<(), Status> {
-    payload.validate().map_err(|_| Status::UnprocessableEntity)
+/// Validates a request payload, mapping any validation failure to `422`.
+fn validate_payload<T: Validate>(payload: &T) -> Result<(), StatusCode> {
+    payload
+        .validate()
+        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)
 }
 
 /// GET /players - Retrieves all players in the collection.
@@ -30,13 +37,24 @@ fn validate_payload<T: Validate>(payload: &T) -> Result<(), Status> {
 /// ```json
 /// [{"id": "f10f398d-b2ff-40aa-acac-51f58d129bc7", "firstName": "Lionel", "squadNumber": 10, ...}, ...]
 /// ```
-#[openapi(tag = "Players")]
-#[get("/players")]
-fn get_all_players(players: &State<PlayerCollection>) -> Result<Json<Vec<PlayerResponse>>, Status> {
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+#[utoipa::path(
+    get,
+    path = "/players",
+    tag = "Players",
+    responses(
+        (status = 200, description = "JSON array of all players", body = Vec<PlayerResponse>),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_all_players(
+    State(players): State<PlayerCollection>,
+) -> Result<Json<Vec<PlayerResponse>>, StatusCode> {
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     player_service::get_all(&mut connection)
         .map(Json)
-        .map_err(|_| Status::InternalServerError)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// GET /players/{id} - Retrieves a specific player by UUID (admin route).
@@ -50,17 +68,27 @@ fn get_all_players(players: &State<PlayerCollection>) -> Result<Json<Vec<PlayerR
 ///
 /// # Example
 /// `GET /players/f10f398d-b2ff-40aa-acac-51f58d129bc7` returns Messi's data
-#[openapi(tag = "Players")]
-#[get("/players/<id>")]
-fn get_player_by_id(
-    id: String,
-    players: &State<PlayerCollection>,
-) -> Result<Json<PlayerResponse>, Status> {
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+#[utoipa::path(
+    get,
+    path = "/players/{id}",
+    tag = "Players",
+    responses(
+        (status = 200, description = "JSON object with player data", body = PlayerResponse),
+        (status = 404, description = "No player has that UUID"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_player_by_id(
+    State(players): State<PlayerCollection>,
+    Path(id): Path<String>,
+) -> Result<Json<PlayerResponse>, StatusCode> {
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     player_service::get_by_id(&mut connection, &id)
-        .map_err(|_| Status::InternalServerError)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
-        .ok_or(Status::NotFound)
+        .ok_or(StatusCode::NOT_FOUND)
 }
 
 /// GET /players/squadnumber/{squad_number} - Retrieves a player by squad number.
@@ -74,17 +102,27 @@ fn get_player_by_id(
 ///
 /// # Example
 /// `GET /players/squadnumber/10` finds the player wearing jersey #10
-#[openapi(tag = "Players")]
-#[get("/players/squadnumber/<squad_number>")]
-fn get_player_by_squad_number(
-    squad_number: u32,
-    players: &State<PlayerCollection>,
-) -> Result<Json<PlayerResponse>, Status> {
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+#[utoipa::path(
+    get,
+    path = "/players/squadnumber/{squad_number}",
+    tag = "Players",
+    responses(
+        (status = 200, description = "JSON object with player data", body = PlayerResponse),
+        (status = 404, description = "No player has that squad number"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_player_by_squad_number(
+    State(players): State<PlayerCollection>,
+    Path(squad_number): Path<u32>,
+) -> Result<Json<PlayerResponse>, StatusCode> {
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     player_service::get_by_squad_number(&mut connection, squad_number)
-        .map_err(|_| Status::InternalServerError)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
-        .ok_or(Status::NotFound)
+        .ok_or(StatusCode::NOT_FOUND)
 }
 
 /// POST /players - Creates a new player with an auto-generated UUID.
@@ -104,20 +142,31 @@ fn get_player_by_squad_number(
 /// ```json
 /// {"firstName": "Diego", "squadNumber": 10, ...}
 /// ```
-#[openapi(tag = "Players")]
-#[post("/players", data = "<player_request>")]
-fn create_player(
-    player_request: Json<PlayerRequest>,
-    players: &State<PlayerCollection>,
-) -> Result<(Status, Json<PlayerResponse>), Status> {
-    let payload = player_request.into_inner();
+#[utoipa::path(
+    post,
+    path = "/players",
+    tag = "Players",
+    request_body = PlayerRequest,
+    responses(
+        (status = 201, description = "Player created", body = PlayerResponse),
+        (status = 409, description = "Squad number already taken"),
+        (status = 422, description = "Validation failed"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn create_player(
+    State(players): State<PlayerCollection>,
+    Json(payload): Json<PlayerRequest>,
+) -> Result<(StatusCode, Json<PlayerResponse>), StatusCode> {
     validate_payload(&payload)?;
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match player_service::create(&mut connection, payload) {
-        Ok(response) => Ok((Status::Created, Json(response))),
-        Err(CreateError::DuplicateSquadNumber) => Err(Status::Conflict),
-        Err(CreateError::Database(_)) => Err(Status::InternalServerError),
+        Ok(response) => Ok((StatusCode::CREATED, Json(response))),
+        Err(CreateError::DuplicateSquadNumber) => Err(StatusCode::CONFLICT),
+        Err(CreateError::Database(_)) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -139,21 +188,32 @@ fn create_player(
 ///
 /// # Example
 /// `PUT /players/squadnumber/10` with JSON body updates the player wearing jersey #10
-#[openapi(tag = "Players")]
-#[put("/players/squadnumber/<squad_number>", data = "<player_request>")]
-fn update_player(
-    squad_number: u32,
-    player_request: Json<PlayerRequest>,
-    players: &State<PlayerCollection>,
-) -> Result<Status, Status> {
-    let payload = player_request.into_inner();
+#[utoipa::path(
+    put,
+    path = "/players/squadnumber/{squad_number}",
+    tag = "Players",
+    request_body = PlayerRequest,
+    responses(
+        (status = 204, description = "Player updated successfully"),
+        (status = 404, description = "No player has that squad number"),
+        (status = 422, description = "Validation failed"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn update_player(
+    State(players): State<PlayerCollection>,
+    Path(squad_number): Path<u32>,
+    Json(payload): Json<PlayerRequest>,
+) -> Result<StatusCode, StatusCode> {
     validate_payload(&payload)?;
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match player_service::update(&mut connection, squad_number, payload) {
-        Ok(_) => Ok(Status::NoContent),
-        Err(UpdateError::NotFound) => Err(Status::NotFound),
-        Err(UpdateError::Database(_)) => Err(Status::InternalServerError),
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(UpdateError::NotFound) => Err(StatusCode::NOT_FOUND),
+        Err(UpdateError::Database(_)) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -167,46 +227,45 @@ fn update_player(
 /// # Returns
 /// * `204 No Content` - Player successfully deleted (no response body)
 /// * `404 Not Found` - If no player has that squad number
-#[openapi(tag = "Players")]
-#[delete("/players/squadnumber/<squad_number>")]
-fn delete_player(squad_number: u32, players: &State<PlayerCollection>) -> Result<Status, Status> {
-    let mut connection = players.get().map_err(|_| Status::InternalServerError)?;
+#[utoipa::path(
+    delete,
+    path = "/players/squadnumber/{squad_number}",
+    tag = "Players",
+    responses(
+        (status = 204, description = "Player deleted"),
+        (status = 404, description = "No player has that squad number"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn delete_player(
+    State(players): State<PlayerCollection>,
+    Path(squad_number): Path<u32>,
+) -> Result<StatusCode, StatusCode> {
+    let mut connection = players
+        .get()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match player_service::delete(&mut connection, squad_number) {
-        Ok(true) => Ok(Status::NoContent),
-        Ok(false) => Err(Status::NotFound),
-        Err(_) => Err(Status::InternalServerError),
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
-/// Returns all player-related routes for mounting in Rocket.
+/// Builds the player routes into an Axum router.
 ///
-/// Returns all player routes and their OpenAPI spec for mounting.
-///
-/// # Usage
-/// ```ignore
-/// mount_endpoints_and_merged_docs! {
-///     server, "/".to_owned(), settings,
-///     "/" => routes::players::get_routes_and_docs(&settings),
-/// }
-/// ```
-pub fn get_routes_and_docs(
-    settings: &rocket_okapi::settings::OpenApiSettings,
-) -> (Vec<rocket::Route>, rocket_okapi::okapi::openapi3::OpenApi) {
-    openapi_get_routes_spec![
-        settings:
-        get_all_players,
-        get_player_by_id,
-        get_player_by_squad_number,
-        create_player,
-        update_player,
-        delete_player,
-    ]
-}
-
-/// Returns all player routes without OpenAPI types for callers that do not need
-/// documentation (e.g. lightweight test setups).
-#[allow(dead_code)]
-pub fn routes() -> Vec<rocket::Route> {
-    get_routes_and_docs(&rocket_okapi::settings::OpenApiSettings::default()).0
+/// Returns a `Router<PlayerCollection>` (state not yet applied). The shared
+/// connection pool is attached centrally when the routers are merged in
+/// [`crate::build_app`]. Each path binds its HTTP methods explicitly, replacing
+/// Rocket's attribute-driven route mounting.
+pub fn router() -> Router<PlayerCollection> {
+    Router::new()
+        .route("/players", get(get_all_players).post(create_player))
+        .route("/players/{id}", get(get_player_by_id))
+        .route(
+            "/players/squadnumber/{squad_number}",
+            get(get_player_by_squad_number)
+                .put(update_player)
+                .delete(delete_player),
+        )
 }

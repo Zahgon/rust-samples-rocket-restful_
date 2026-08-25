@@ -13,8 +13,8 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 /// r2d2 connection pool backed by SQLite via Diesel.
 ///
-/// A type alias for `Pool<ConnectionManager<SqliteConnection>>`. Rocket shares
-/// this across async worker threads. The pool manages connections internally
+/// A type alias for `Pool<ConnectionManager<SqliteConnection>>`. Axum shares
+/// this across async worker threads via router state. The pool manages connections internally
 /// and hands them out on demand — callers call `.get()` to borrow a
 /// `PooledConnection`, which is returned to the pool automatically on drop.
 pub type PlayerCollection = Pool<ConnectionManager<SqliteConnection>>;

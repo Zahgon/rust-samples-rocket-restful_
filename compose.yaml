@@ -3,7 +3,7 @@ name: rust-samples-rocket-restful
 services:
   api:
     image: rust-samples-rocket-restful
-    container_name: rocket-app
+    container_name: axum-app
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,7 +13,6 @@ services:
       - storage:/storage/
     environment:
       - STORAGE_PATH=/storage/players-sqlite3.db
-      - ROCKET_PROFILE=release
     restart: unless-stopped
 
 volumes:

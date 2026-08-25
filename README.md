@@ -1,4 +1,4 @@
-# 🧪 RESTful API with Rust and Rocket
+# 🧪 RESTful API with Rust and Axum
 
 [![Rust CI](https://github.com/nanotaboada/rust-samples-rocket-restful/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/nanotaboada/rust-samples-rocket-restful/actions/workflows/rust-ci.yml)
 [![Rust CD](https://github.com/nanotaboada/rust-samples-rocket-restful/actions/workflows/rust-cd.yml/badge.svg)](https://github.com/nanotaboada/rust-samples-rocket-restful/actions/workflows/rust-cd.yml)
@@ -10,12 +10,12 @@
 ![Claude](https://img.shields.io/badge/Claude-contributing-D97757?logo=claude&logoColor=white&labelColor=181818)
 ![CodeRabbit](https://img.shields.io/badge/CodeRabbit-reviewing-FF570A?logo=coderabbit&logoColor=white&labelColor=181818)
 
-Proof of Concept for a RESTful Web Service built with **Rocket** and **Rust 2024 Edition**. This project demonstrates best practices for building a layered, testable, and maintainable API implementing CRUD operations for a Players resource (Argentina 2022 FIFA World Cup squad).
+Proof of Concept for a RESTful Web Service built with **Axum** and **Rust 2024 Edition**. This project demonstrates best practices for building a layered, testable, and maintainable API implementing CRUD operations for a Players resource (Argentina 2022 FIFA World Cup squad).
 
 ## Features
 
 - 🏗️ **Layered Architecture** - Modular design with routes, services, repositories, state, and models as distinct packages
-- 🔒 **Thread-Safe State** - SQLite access via r2d2 connection pool using Rocket's `State<T>`
+- 🔒 **Thread-Safe State** - SQLite access via r2d2 connection pool using Axum's `State<T>`
 - ✅ **Type Safety** - Strong Rust type system with Serde for request/response serialization
 - 🚦 **Comprehensive Testing** - Integration tests covering all endpoints with real SQLite
 - 🐳 **Containerized Deployment** - Multi-stage Docker builds with migration-based database initialization
@@ -26,7 +26,7 @@ Proof of Concept for a RESTful Web Service built with **Rocket** and **Rust 2024
 | Category | Technology |
 | -------- | ---------- |
 | **Language** | [Rust 2024 Edition](https://www.rust-lang.org/) |
-| **Web Framework** | [Rocket 0.5.1](https://rocket.rs/) |
+| **Web Framework** | [Axum 0.8](https://github.com/tokio-rs/axum) |
 | **Serialization** | [Serde](https://serde.rs/) |
 | **Unique IDs** | [uuid](https://github.com/uuid-rs/uuid) |
 | **ORM / Migrations** | [Diesel](https://diesel.rs/) (SQLite + r2d2 features) + [diesel_migrations](https://docs.rs/diesel_migrations) |
@@ -34,7 +34,7 @@ Proof of Concept for a RESTful Web Service built with **Rocket** and **Rust 2024
 
 ## Architecture
 
-Layered architecture with Rocket's managed state for thread-safe dependency sharing.
+Layered architecture with Axum's router state for thread-safe dependency sharing.
 
 ```mermaid
 %%{init: {
@@ -55,7 +55,7 @@ graph RL
 
     main[main]
     routes[routes]
-    Rocket[Rocket]
+    Axum[Axum]
 
     services[services]
 
@@ -70,11 +70,11 @@ graph RL
     %% Dependencies
 
     routes --> main
-    Rocket --> main
+    Axum --> main
 
     services --> routes
     state --> routes
-    Rocket --> routes
+    Axum --> routes
 
     repositories --> services
 
@@ -97,7 +97,7 @@ graph RL
     classDef test fill:#ccffcc,stroke:#53c45e,stroke-width:2px,color:#555,font-family:monospace;
 
     class main,routes,services,repositories,state,models core
-    class Rocket,Serde,Diesel deps
+    class Axum,Serde,Diesel deps
     class tests test
 ```
 
@@ -202,9 +202,6 @@ docker pull ghcr.io/nanotaboada/rust-samples-rocket-restful:latest
 # Container default (set in Dockerfile): /storage/players-sqlite3.db
 # Local dev fallback (no env var set):   storage/players-sqlite3.db
 STORAGE_PATH=/storage/players-sqlite3.db
-
-# Rocket profile: debug or release (default: debug)
-ROCKET_PROFILE=release
 ```
 
 ## Contributing
